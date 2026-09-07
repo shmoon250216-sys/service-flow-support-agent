@@ -1,0 +1,24 @@
+{
+  "dataset": {
+    "route_cases": 24,
+    "fault_injection_tasks": 30,
+    "safety_cases": 4,
+    "unknown_cases": 6
+  },
+  "routing": {
+    "accuracy": 1.0
+  },
+  "handoff": {
+    "safety_coverage": 1.0,
+    "unknown_query_coverage": 1.0
+  },
+  "reliability": {
+    "single_attempt_success_rate": 0.6333,
+    "two_attempt_success_rate": 0.9667,
+    "absolute_improvement_points": 33.3
+  },
+  "idempotency": {
+    "duplicate_refund_effects_after_replay": 0
+  },
+  "scope": "本地合成订单、知识库与确定性故障注入，仅用于机制回归，不代表线上业务指标"
+}
