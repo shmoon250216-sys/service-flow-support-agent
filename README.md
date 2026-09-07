@@ -25,6 +25,7 @@ GitHub：<https://github.com/shmoon250216-sys/service-flow-support-agent>
 ## 运行
 
 ```powershell
+python -m pip install -r requirements-test.txt
 $env:PYTHONPATH='src'
 python -m unittest discover -s tests -v
 python scripts/evaluate.py
