@@ -18,8 +18,13 @@ class ApiTests(unittest.TestCase):
                 self.assertEqual("confirmation_required", proposed.json()["status"])
                 confirmed = client.post("/refund/confirm", json={"token": proposed.json()["confirmation_token"], "customer_id": "C-001"})
                 self.assertEqual("completed", confirmed.json()["status"])
+                self.assertIn("ServiceFlow", client.get("/").text)
+                self.assertEqual(2, client.get("/health").json()["tools"])
+                self.assertEqual(1, len(client.get("/api/orders/C-001").json()))
+                self.assertEqual({"create_ticket", "submit_refund"}, {item["name"] for item in client.get("/api/tools").json()})
+                self.assertGreaterEqual(len(client.get("/api/events/api-1").json()), 1)
+
 
 
 if __name__ == "__main__":
     unittest.main()
-

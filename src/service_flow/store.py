@@ -78,6 +78,11 @@ class SupportStore:
         with self.lock:
             return self.connection.execute("SELECT * FROM orders WHERE order_id=?", (order_id,)).fetchone()
 
+    def orders_for(self, customer_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.connection.execute("SELECT * FROM orders WHERE customer_id=? ORDER BY order_id", (customer_id,)).fetchall()
+        return [dict(row) for row in rows]
+
     def articles(self, product: str) -> list[sqlite3.Row]:
         with self.lock:
             return self.connection.execute(
@@ -107,6 +112,11 @@ class SupportStore:
             else:
                 row = self.connection.execute("SELECT COUNT(*) n FROM tickets").fetchone()
         return int(row["n"])
+
+    def tickets(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.connection.execute("SELECT * FROM tickets ORDER BY created_at DESC LIMIT ?", (max(1, min(limit, 200)),)).fetchall()
+        return [dict(row) for row in rows]
 
     def save_pending(self, token: str, request_id: str, customer_id: str, order_id: str, payload: dict[str, Any]) -> None:
         with self.lock, self.connection:
@@ -140,7 +150,11 @@ class SupportStore:
         with self.lock:
             return int(self.connection.execute("SELECT COUNT(*) n FROM effects").fetchone()["n"])
 
+    def events(self, request_id: str) -> list[dict[str, Any]]:
+        with self.lock:
+            rows = self.connection.execute("SELECT event_type,payload,created_at FROM events WHERE request_id=? ORDER BY id", (request_id,)).fetchall()
+        return [dict(row) for row in rows]
+
     def close(self) -> None:
         with self.lock:
             self.connection.close()
-

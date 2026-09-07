@@ -61,7 +61,12 @@ class AgentTests(unittest.TestCase):
         self.assertEqual("failed", failed.status)
         self.assertEqual("completed", resumed.status)
 
+    def test_tool_schema_validation(self):
+        schemas = self.agent.tools.schemas()
+        self.assertEqual({"create_ticket", "submit_refund"}, {item["name"] for item in schemas})
+        with self.assertRaises(ValueError):
+            self.agent.tools.call("submit_refund", {"token": "x"})
+
 
 if __name__ == "__main__":
     unittest.main()
-

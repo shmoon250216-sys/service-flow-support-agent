@@ -1,0 +1,7 @@
+services:
+  service-flow:
+    build: .
+    ports: ["8001:8000"]
+    env_file: [.env]
+    volumes: ["./data:/app/data"]
+

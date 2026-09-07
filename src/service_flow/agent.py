@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from typing import Callable
 
+from .routing import Router, RuleRouter, rule_classify
 from .store import SupportStore
+from .tools import ToolRegistry, build_tools
 from .types import SupportReply
 
 
@@ -30,21 +33,19 @@ def tokens(text: str) -> set[str]:
 
 
 class SupportAgent:
-    def __init__(self, store: SupportStore, *, max_attempts: int = 2) -> None:
+    def __init__(self, store: SupportStore, *, max_attempts: int = 2, router: Router | None = None, tools: ToolRegistry | None = None) -> None:
         self.store = store
         self.max_attempts = max(1, max_attempts)
+        self.router = router or RuleRouter()
+        self.tools = tools or build_tools(store)
 
     @staticmethod
     def classify(message: str) -> str:
-        if any(k in message for k in ("冒烟", "起火", "鼓包", "烫手", "发烫")):
-            return "safety"
-        if any(k in message for k in ("退款", "退货", "不要了", "退钱")):
-            return "refund"
-        if any(k in message for k in ("人工", "投诉", "工单", "寄修", "坏了")):
-            return "ticket"
-        if any(k in message for k in ("连接", "连不上", "搜不到", "离线", "断网", "隐私", "杂音", "噪声", "质保", "保修")):
-            return "knowledge"
-        return "unknown"
+        return rule_classify(message)
+
+    def _create_ticket(self, request_id: str, customer_id: str, order_id: str, priority: str, reason: str) -> str:
+        output = self.tools.call("create_ticket", {"request_id": request_id, "customer_id": customer_id, "order_id": order_id, "priority": priority, "reason": reason})
+        return str(output["ticket_id"])
 
     def retrieve(self, product: str, query: str) -> list[dict]:
         query_tokens = tokens(query)
@@ -68,12 +69,15 @@ class SupportAgent:
             self.store.append_event(request_id, "ownership_denied", {})
             return SupportReply("denied", "security", "订单不存在或不属于当前用户，已停止调用售后工具。")
 
-        route = self.classify(message)
+        try:
+            route = self.router.route(message)
+        except Exception:
+            route = self.classify(message)
         self.store.append_event(request_id, "routed", {"route": route})
         if route in {"safety", "ticket", "unknown"}:
             priority = "urgent" if route == "safety" else "normal"
             reason = "产品安全风险" if route == "safety" else ("用户要求人工处理" if route == "ticket" else "知识证据不足")
-            ticket_id = self.store.create_ticket(request_id, customer_id, order_id, priority, reason)
+            ticket_id = self._create_ticket(request_id, customer_id, order_id, priority, reason)
             self.store.append_event(request_id, "human_handoff", {"ticket_id": ticket_id, "priority": priority})
             message_out = "请立即停止使用并远离可燃物，已转人工安全专席。" if route == "safety" else "当前证据不足或需要人工处理，已创建售后工单。"
             return SupportReply("handoff", route, message_out, ticket_id=ticket_id)
@@ -81,7 +85,7 @@ class SupportAgent:
         articles = self.retrieve(order["product"], message)
         if route == "knowledge":
             if not articles or articles[0]["score"] < 0.12:
-                ticket_id = self.store.create_ticket(request_id, customer_id, order_id, "normal", "知识证据不足")
+                ticket_id = self._create_ticket(request_id, customer_id, order_id, "normal", "知识证据不足")
                 return SupportReply("handoff", route, "未检索到足够证据，已转人工。", ticket_id=ticket_id)
             top = articles[0]
             self.store.append_event(request_id, "answered", {"article_id": top["article_id"], "score": top["score"]})
@@ -89,7 +93,7 @@ class SupportAgent:
 
         policy = next((item for item in articles if item["article_id"] == "KB-REFUND"), None)
         if order["delivered_days"] > 7:
-            ticket_id = self.store.create_ticket(request_id, customer_id, order_id, "normal", "超出七天退款窗口")
+            ticket_id = self._create_ticket(request_id, customer_id, order_id, "normal", "超出七天退款窗口")
             return SupportReply("handoff", "refund", "已超过七天窗口，转人工核验质量与保修条件。", citations=[] if not policy else [policy], ticket_id=ticket_id)
         token = hashlib.sha256(f"{request_id}:{customer_id}:{order_id}:refund".encode()).hexdigest()[:20]
         payload = {"order_id": order_id, "amount": order["paid_amount"], "reason": message}
@@ -121,8 +125,9 @@ class SupportAgent:
             if fail_policy and fail_policy(attempt):
                 self.store.append_event(pending["request_id"], "refund_failed", {"attempt": attempt})
                 continue
-            refund_id = "R-" + hashlib.sha1(token.encode()).hexdigest()[:8].upper()
-            output = {"refund_id": refund_id, "message": f"退款申请已提交，编号 {refund_id}。"}
+            tool_output = self.tools.call("submit_refund", {"token": token, "order_id": pending["order_id"], "amount": json.loads(pending["payload"])["amount"]})
+            refund_id = str(tool_output["refund_id"])
+            output = {"refund_id": refund_id, "message": str(tool_output["message"])}
             self.store.save_effect(key, output)
             self.store.mark_confirmed(token)
             self.store.append_event(pending["request_id"], "refund_succeeded", {"attempt": attempt, "refund_id": refund_id})
