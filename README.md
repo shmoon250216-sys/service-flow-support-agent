@@ -3,7 +3,7 @@
 GitHub：<https://github.com/shmoon250216-sys/service-flow-support-agent>  
 作者主页：<https://github.com/shmoon250216-sys>
 
-面向消费电子售后的个人项目。它把“知识库问答、订单校验、危险问题转人工、退款确认、工具失败恢复”串成一条可运行链路，避免客服机器人只会聊天、不能安全执行业务动作。
+面向消费电子售后场景，把知识问答、订单校验、安全风险转人工、退款确认和工具失败恢复串成一条可运行链路，使客服 Agent 在回答问题之外能够受控地执行业务动作。
 
 ## 当前可运行形态
 
@@ -41,16 +41,16 @@ docker compose up --build
 
 架构、工具边界和恢复流程见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
-主要接口：`POST /chat` 和 `POST /refund/confirm`。演示数据为本地合成订单及知识库，不含真实用户信息。
+主要接口：`POST /chat` 和 `POST /refund/confirm`。仓库数据为本地合成订单及知识库，不含真实用户信息。
 
 ## 固定评测
 
 `scripts/evaluate.py` 会生成 `evaluation/results.json`，覆盖 24 条路由样例、10 条人工转接样例和 30 个确定性故障注入任务。指标仅说明当前代码在固定回归集上的表现。
 
-## 设计参考
+## 架构参考
 
 - [AgentDesk](https://github.com/huabeitech/agent-desk)：知识约束、Answerability Gate、人工转接和工单闭环。
 - [Google Cloud Cymbal Air Toolbox Demo](https://github.com/GoogleCloudPlatform/cymbal-air-toolbox-demo)：RAG、数据库与客服工具协同的应用场景。
 - [Agentic Customer Service Platform](https://github.com/negativexq/agentic-customer-service-platform)：确认门、策略校验与幂等副作用的生产约束。
 
-本项目只借鉴公开架构思路，代码、合成数据和评测脚本均在本地重新实现。
+仓库借鉴公开项目的客服 Agent 架构约束；代码、合成数据和评测脚本均在本仓库实现。
