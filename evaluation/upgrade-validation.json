@@ -1,0 +1,19 @@
+{
+  "date": "2026-09-21",
+  "unit_api_tests": 32,
+  "result": "passed",
+  "browser_flows": [
+    "knowledge",
+    "contextual_followup",
+    "handoff",
+    "claim",
+    "staff_reply",
+    "reload_restore",
+    "resolve",
+    "refund",
+    "mobile_layout"
+  ],
+  "real_model_verified": false,
+  "payment_backend": "local_sqlite_simulation",
+  "orchestration": "persistent_application_state_machine"
+}

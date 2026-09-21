@@ -24,6 +24,7 @@ class SupportStore:
             self.connection.executescript(
                 """
                 PRAGMA journal_mode=WAL;
+                PRAGMA busy_timeout=10000;
                 CREATE TABLE IF NOT EXISTS orders(
                   order_id TEXT PRIMARY KEY, customer_id TEXT NOT NULL, product TEXT NOT NULL,
                   paid_amount REAL NOT NULL, delivered_days INTEGER NOT NULL, status TEXT NOT NULL
@@ -53,6 +54,19 @@ class SupportStore:
                 CREATE INDEX IF NOT EXISTS idx_events_request ON events(request_id,id);
                 """
             )
+            self.connection.executescript("""
+                CREATE TABLE IF NOT EXISTS refund_ledger(
+                  order_id TEXT PRIMARY KEY, refund_id TEXT NOT NULL UNIQUE,
+                  amount REAL NOT NULL, created_at TEXT NOT NULL);
+            """)
+            columns = {
+                r[1]
+                for r in self.connection.execute("PRAGMA table_info(pending_actions)")
+            }
+            if "expires_at" not in columns:
+                self.connection.execute(
+                    "ALTER TABLE pending_actions ADD COLUMN expires_at REAL NOT NULL DEFAULT 0"
+                )
             self.connection.commit()
 
     def seed(self) -> None:
@@ -63,79 +77,177 @@ class SupportStore:
             ("O-1004", "C-004", "HomeCam Mini", 299.0, 45, "delivered"),
         ]
         articles = [
-            ("KB-AIR-RESET", "AirBuds Pro", "耳机无法连接的复位流程", "忘记旧蓝牙记录，将双耳放回充电盒并长按按键十秒，指示灯白色闪烁后重新配对。", "AirBuds Pro 用户手册 v2.1"),
-            ("KB-AIR-NOISE", "AirBuds Pro", "单耳杂音排查", "先清洁网罩并关闭空间音频；仍有杂音时交换左右耳测试，记录序列号后创建质检工单。", "AirBuds Pro 售后知识库 2026-08"),
-            ("KB-CAM-OFFLINE", "HomeCam Mini", "摄像头离线处理", "确认路由器为 2.4GHz，重启摄像头和路由器；长按 Reset 五秒后在 App 中重新添加设备。", "HomeCam Mini 运维手册 v3.0"),
-            ("KB-CAM-PRIVACY", "HomeCam Mini", "隐私模式说明", "开启隐私模式后镜头物理遮蔽并停止视频上传，状态灯熄灭；关闭后恢复监控。", "HomeCam Mini 隐私说明 2026-06"),
-            ("KB-REFUND", "ALL", "七天无理由退款规则", "签收七天内且配件齐全、无非质量损坏可申请退款；退款提交前必须由订单本人确认。", "售后政策 v4.2"),
-            ("KB-WARRANTY", "ALL", "质保与换新规则", "主机质保十二个月。出现冒烟、过热或电池鼓包时停止使用，不再引导自助排查，立即转人工安全专席。", "产品安全政策 v5.0"),
+            (
+                "KB-AIR-RESET",
+                "AirBuds Pro",
+                "耳机无法连接的复位流程",
+                "忘记旧蓝牙记录，将双耳放回充电盒并长按按键十秒，指示灯白色闪烁后重新配对。",
+                "AirBuds Pro 用户手册 v2.1",
+            ),
+            (
+                "KB-AIR-NOISE",
+                "AirBuds Pro",
+                "单耳杂音排查",
+                "先清洁网罩并关闭空间音频；仍有杂音时交换左右耳测试，记录序列号后创建质检工单。",
+                "AirBuds Pro 售后知识库 2026-08",
+            ),
+            (
+                "KB-CAM-OFFLINE",
+                "HomeCam Mini",
+                "摄像头离线处理",
+                "确认路由器为 2.4GHz，重启摄像头和路由器；长按 Reset 五秒后在 App 中重新添加设备。",
+                "HomeCam Mini 运维手册 v3.0",
+            ),
+            (
+                "KB-CAM-PRIVACY",
+                "HomeCam Mini",
+                "隐私模式说明",
+                "开启隐私模式后镜头物理遮蔽并停止视频上传，状态灯熄灭；关闭后恢复监控。",
+                "HomeCam Mini 隐私说明 2026-06",
+            ),
+            (
+                "KB-REFUND",
+                "ALL",
+                "七天无理由退款规则",
+                "签收七天内且配件齐全、无非质量损坏可申请退款；退款提交前必须由订单本人确认。",
+                "售后政策 v4.2",
+            ),
+            (
+                "KB-WARRANTY",
+                "ALL",
+                "质保与换新规则",
+                "主机质保十二个月。出现冒烟、过热或电池鼓包时停止使用，不再引导自助排查，立即转人工安全专席。",
+                "产品安全政策 v5.0",
+            ),
         ]
         with self.lock, self.connection:
-            self.connection.executemany("INSERT OR IGNORE INTO orders VALUES(?,?,?,?,?,?)", orders)
-            self.connection.executemany("INSERT OR IGNORE INTO articles VALUES(?,?,?,?,?)", articles)
+            self.connection.executemany(
+                "INSERT OR IGNORE INTO orders VALUES(?,?,?,?,?,?)", orders
+            )
+            self.connection.executemany(
+                "INSERT OR IGNORE INTO articles VALUES(?,?,?,?,?)", articles
+            )
 
     def order(self, order_id: str) -> sqlite3.Row | None:
         with self.lock:
-            return self.connection.execute("SELECT * FROM orders WHERE order_id=?", (order_id,)).fetchone()
+            return self.connection.execute(
+                "SELECT * FROM orders WHERE order_id=?", (order_id,)
+            ).fetchone()
 
     def orders_for(self, customer_id: str) -> list[dict[str, Any]]:
         with self.lock:
-            rows = self.connection.execute("SELECT * FROM orders WHERE customer_id=? ORDER BY order_id", (customer_id,)).fetchall()
+            rows = self.connection.execute(
+                "SELECT * FROM orders WHERE customer_id=? ORDER BY order_id",
+                (customer_id,),
+            ).fetchall()
         return [dict(row) for row in rows]
 
     def articles(self, product: str) -> list[sqlite3.Row]:
         with self.lock:
             return self.connection.execute(
-                "SELECT * FROM articles WHERE product IN (?, 'ALL') ORDER BY article_id", (product,)
+                "SELECT * FROM articles WHERE product IN (?, 'ALL') ORDER BY article_id",
+                (product,),
             ).fetchall()
 
-    def append_event(self, request_id: str, event_type: str, payload: dict[str, Any]) -> None:
+    def append_event(
+        self, request_id: str, event_type: str, payload: dict[str, Any]
+    ) -> None:
         with self.lock, self.connection:
             self.connection.execute(
                 "INSERT INTO events(request_id,event_type,payload,created_at) VALUES(?,?,?,?)",
-                (request_id, event_type, json.dumps(payload, ensure_ascii=False), utc_now()),
+                (
+                    request_id,
+                    event_type,
+                    json.dumps(payload, ensure_ascii=False),
+                    utc_now(),
+                ),
             )
 
-    def create_ticket(self, request_id: str, customer_id: str, order_id: str | None, priority: str, reason: str) -> str:
+    def create_ticket(
+        self,
+        request_id: str,
+        customer_id: str,
+        order_id: str | None,
+        priority: str,
+        reason: str,
+    ) -> str:
         ticket_id = "T-" + hashlib.sha1(request_id.encode()).hexdigest()[:8].upper()
         with self.lock, self.connection:
             self.connection.execute(
                 "INSERT OR IGNORE INTO tickets VALUES(?,?,?,?,?,?,?)",
-                (ticket_id, request_id, customer_id, order_id, priority, reason, utc_now()),
+                (
+                    ticket_id,
+                    request_id,
+                    customer_id,
+                    order_id,
+                    priority,
+                    reason,
+                    utc_now(),
+                ),
             )
         return ticket_id
 
     def ticket_count(self, request_id: str | None = None) -> int:
         with self.lock:
             if request_id:
-                row = self.connection.execute("SELECT COUNT(*) n FROM tickets WHERE request_id=?", (request_id,)).fetchone()
+                row = self.connection.execute(
+                    "SELECT COUNT(*) n FROM tickets WHERE request_id=?", (request_id,)
+                ).fetchone()
             else:
-                row = self.connection.execute("SELECT COUNT(*) n FROM tickets").fetchone()
+                row = self.connection.execute(
+                    "SELECT COUNT(*) n FROM tickets"
+                ).fetchone()
         return int(row["n"])
 
     def tickets(self, *, limit: int = 50) -> list[dict[str, Any]]:
         with self.lock:
-            rows = self.connection.execute("SELECT * FROM tickets ORDER BY created_at DESC LIMIT ?", (max(1, min(limit, 200)),)).fetchall()
+            rows = self.connection.execute(
+                "SELECT * FROM tickets ORDER BY created_at DESC LIMIT ?",
+                (max(1, min(limit, 200)),),
+            ).fetchall()
         return [dict(row) for row in rows]
 
-    def save_pending(self, token: str, request_id: str, customer_id: str, order_id: str, payload: dict[str, Any]) -> None:
+    def save_pending(
+        self,
+        token: str,
+        request_id: str,
+        customer_id: str,
+        order_id: str,
+        payload: dict[str, Any],
+    ) -> None:
         with self.lock, self.connection:
             self.connection.execute(
-                "INSERT OR IGNORE INTO pending_actions VALUES(?,?,?,?,?,?,?,?)",
-                (token, request_id, customer_id, order_id, "refund", json.dumps(payload, ensure_ascii=False), "pending", utc_now()),
+                "INSERT OR IGNORE INTO pending_actions(token,request_id,customer_id,order_id,action_type,payload,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    token,
+                    request_id,
+                    customer_id,
+                    order_id,
+                    "refund",
+                    json.dumps(payload, ensure_ascii=False),
+                    "pending",
+                    utc_now(),
+                    __import__("time").time() + 900,
+                ),
             )
 
     def pending(self, token: str) -> sqlite3.Row | None:
         with self.lock:
-            return self.connection.execute("SELECT * FROM pending_actions WHERE token=?", (token,)).fetchone()
+            return self.connection.execute(
+                "SELECT * FROM pending_actions WHERE token=?", (token,)
+            ).fetchone()
 
     def mark_confirmed(self, token: str) -> None:
         with self.lock, self.connection:
-            self.connection.execute("UPDATE pending_actions SET status='confirmed' WHERE token=?", (token,))
+            self.connection.execute(
+                "UPDATE pending_actions SET status='confirmed' WHERE token=?", (token,)
+            )
 
     def load_effect(self, key: str) -> dict[str, Any] | None:
         with self.lock:
-            row = self.connection.execute("SELECT output FROM effects WHERE idempotency_key=?", (key,)).fetchone()
+            row = self.connection.execute(
+                "SELECT output FROM effects WHERE idempotency_key=?", (key,)
+            ).fetchone()
         return json.loads(row["output"]) if row else None
 
     def save_effect(self, key: str, output: dict[str, Any]) -> bool:
@@ -148,13 +260,110 @@ class SupportStore:
 
     def effect_count(self) -> int:
         with self.lock:
-            return int(self.connection.execute("SELECT COUNT(*) n FROM effects").fetchone()["n"])
+            return int(
+                self.connection.execute("SELECT COUNT(*) n FROM effects").fetchone()[
+                    "n"
+                ]
+            )
 
     def events(self, request_id: str) -> list[dict[str, Any]]:
         with self.lock:
-            rows = self.connection.execute("SELECT event_type,payload,created_at FROM events WHERE request_id=? ORDER BY id", (request_id,)).fetchall()
+            rows = self.connection.execute(
+                "SELECT event_type,payload,created_at FROM events WHERE request_id=? ORDER BY id",
+                (request_id,),
+            ).fetchall()
         return [dict(row) for row in rows]
 
     def close(self) -> None:
         with self.lock:
             self.connection.close()
+
+    def execute_refund(self, args):
+        """One SQLite transaction models the provider effect and order-level deduplication.
+
+        A real payment adapter must implement provider-side idempotency and reconciliation.
+        """
+        import time
+
+        token = args["token"]
+        with self.lock:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                pending = self.connection.execute(
+                    "SELECT * FROM pending_actions WHERE token=?", (token,)
+                ).fetchone()
+                if not pending or pending["status"] not in {"authorized", "confirmed"}:
+                    raise PermissionError("退款尚未确认")
+                if pending["order_id"] != args["order_id"]:
+                    raise ValueError("订单与提案不匹配")
+                order = self.connection.execute(
+                    "SELECT * FROM orders WHERE order_id=?", (args["order_id"],)
+                ).fetchone()
+                amount = json.loads(pending["payload"])["amount"]
+                if args["amount"] != amount or amount != order["paid_amount"]:
+                    raise ValueError("退款金额与订单不匹配")
+                has_conversations = self.connection.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversations'"
+                ).fetchone()
+                if (
+                    has_conversations
+                    and self.connection.execute(
+                        "SELECT 1 FROM conversations WHERE order_id=? AND state IN ('waiting_human','human') LIMIT 1",
+                        (args["order_id"],),
+                    ).fetchone()
+                ):
+                    raise ValueError("该订单正在人工处理中")
+                existing = self.connection.execute(
+                    "SELECT * FROM refund_ledger WHERE order_id=?", (args["order_id"],)
+                ).fetchone()
+                if existing:
+                    refund_id = existing["refund_id"]
+                else:
+                    if pending["expires_at"] < time.time():
+                        raise ValueError("确认令牌已过期，请重新申请")
+                    if order["status"] != "delivered" or order["delivered_days"] > 7:
+                        raise ValueError("订单不满足本地退款条件")
+                    refund_id = (
+                        "R-"
+                        + hashlib.sha256(args["order_id"].encode())
+                        .hexdigest()[:12]
+                        .upper()
+                    )
+                    self.connection.execute(
+                        "INSERT INTO refund_ledger VALUES(?,?,?,?)",
+                        (args["order_id"], refund_id, amount, utc_now()),
+                    )
+                    self.connection.execute(
+                        "UPDATE orders SET status='refunded' WHERE order_id=?",
+                        (args["order_id"],),
+                    )
+                self.connection.execute(
+                    "UPDATE pending_actions SET status='confirmed' WHERE token=?",
+                    (token,),
+                )
+                self.connection.commit()
+                return {
+                    "status": "ok",
+                    "refund_id": refund_id,
+                    "message": f"本地退款处理已完成，编号 {refund_id}（模拟账本，无真实扣款）。",
+                }
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def authorize_refund(self, token, customer_id):
+        import time
+
+        with self.lock, self.connection:
+            pending = self.connection.execute(
+                "SELECT * FROM pending_actions WHERE token=? AND customer_id=?",
+                (token, customer_id),
+            ).fetchone()
+            if not pending:
+                raise PermissionError("令牌无效或不属于当前用户")
+            if pending["status"] != "confirmed" and pending["expires_at"] < time.time():
+                raise ValueError("确认令牌已过期，请重新申请")
+            self.connection.execute(
+                "UPDATE pending_actions SET status='authorized' WHERE token=? AND status='pending'",
+                (token,),
+            )

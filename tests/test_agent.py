@@ -49,21 +49,36 @@ class AgentTests(unittest.TestCase):
 
     def test_retry_recovers_transient_failure(self):
         proposed = self.agent.handle("q6", "C-001", "O-1001", "我要退货")
-        reply = self.agent.confirm_refund(proposed.confirmation_token, "C-001", fail_policy=lambda attempt: attempt == 1)
+        reply = self.agent.confirm_refund(
+            proposed.confirmation_token,
+            "C-001",
+            fail_policy=lambda attempt: attempt == 1,
+        )
         self.assertEqual("completed", reply.status)
         self.assertEqual(2, reply.diagnostics["attempts"])
 
     def test_failed_action_can_resume_with_same_token(self):
         one_try = SupportAgent(self.store, max_attempts=1)
         proposed = one_try.handle("q7", "C-001", "O-1001", "申请退款")
-        failed = one_try.confirm_refund(proposed.confirmation_token, "C-001", fail_policy=lambda _: True)
+        failed = one_try.confirm_refund(
+            proposed.confirmation_token, "C-001", fail_policy=lambda _: True
+        )
         resumed = one_try.confirm_refund(proposed.confirmation_token, "C-001")
         self.assertEqual("failed", failed.status)
         self.assertEqual("completed", resumed.status)
 
     def test_tool_schema_validation(self):
         schemas = self.agent.tools.schemas()
-        self.assertEqual({"create_ticket", "submit_refund"}, {item["name"] for item in schemas})
+        self.assertEqual(
+            {
+                "get_order",
+                "search_knowledge",
+                "get_ticket",
+                "create_ticket",
+                "submit_refund",
+            },
+            {item["name"] for item in schemas},
+        )
         with self.assertRaises(ValueError):
             self.agent.tools.call("submit_refund", {"token": "x"})
 

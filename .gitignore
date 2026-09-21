@@ -3,3 +3,12 @@ __pycache__/
 .venv/
 data/*.db*
 
+
+.env
+data/*.log
+*.egg-info/
+build/
+dist/
+
+evaluation/ui/
+.browser-tools/

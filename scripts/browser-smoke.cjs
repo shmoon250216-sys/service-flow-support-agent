@@ -1,0 +1,25 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const fs=require('fs');const path=require('path');const output=process.env.UI_OUTPUT||'evaluation/ui';fs.mkdirSync(output,{recursive:true});const base=process.env.UI_BASE_URL||'http://127.0.0.1:8002';
+(async()=>{
+ const browser=await chromium.launch({...(process.env.BROWSER_PATH?{executablePath:process.env.BROWSER_PATH}:{}),headless:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1050}});
+ const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/');await page.locator('#order option').first().waitFor({state:'attached'});
+ await page.locator('#newChat').click();await page.waitForFunction(()=>document.querySelector('#chatTitle').textContent.includes('O-1001'));
+ await page.locator('#message').fill('耳机蓝牙连不上怎么办？');await page.locator('#send').click();
+ await page.getByText('忘记旧蓝牙记录，将双耳放回充电盒并长按按键十秒，指示灯白色闪烁后重新配对。',{exact:true}).waitFor();
+ await page.locator('#message').fill('那具体怎么操作');await page.locator('#send').click();await page.waitForFunction(()=>document.querySelectorAll('.bubble.user').length===2);await page.waitForFunction(()=>document.querySelectorAll('.bubble.assistant').length===2);
+ await page.locator('#message').fill('我试过了，还是不行');await page.locator('#send').click();await page.waitForFunction(()=>document.querySelector('#state').textContent==='等待人工');
+ await page.screenshot({path:path.join(output,'customer.png'),fullPage:true});
+ const staff=await context.newPage();staff.on('pageerror',e=>errors.push(e.message));await staff.goto(base+'/');await staff.locator('#order option').first().waitFor({state:'attached'});await staff.locator('#staffTab').click();await staff.locator('#list .item').first().waitFor();await staff.locator('#list .item').first().click();await staff.locator('#claim').click();await staff.waitForFunction(()=>document.querySelector('#state').textContent==='人工处理中');
+ await staff.locator('#message').fill('已收到排障记录，请确认充电盒指示灯是否闪烁。');await staff.locator('#send').click();await page.getByText('已收到排障记录，请确认充电盒指示灯是否闪烁。',{exact:true}).waitFor({timeout:15000});
+ await staff.screenshot({path:path.join(output,'staff.png'),fullPage:true});
+ await page.reload();await page.getByText('已收到排障记录，请确认充电盒指示灯是否闪烁。',{exact:true}).waitFor({timeout:15000});
+ await staff.locator('#message').fill('用户确认设备恢复，完成处理。');await staff.locator('#resolve').click();await page.waitForFunction(()=>document.querySelector('#state').textContent==='已结案');
+ await page.locator('#newChat').click();await page.waitForFunction(()=>document.querySelector('#state').textContent==='自动服务中');
+ await page.locator('#message').fill('我要退款');await page.locator('#send').click();await page.getByText('查看并确认退款',{exact:true}).click();await page.locator('#doConfirm').click();await page.getByText(/本地退款处理已完成，编号/).first().waitFor();
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'mobile.png'),fullPage:true});
+ const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+ if(overflow||errors.length)throw Error(JSON.stringify({overflow,errors}));
+ console.log(JSON.stringify({checks:['knowledge','contextual_followup','handoff','staff_claim','staff_reply_poll','reload_restore','resolve','refund_confirm','mobile_no_overflow'],errors}));await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
