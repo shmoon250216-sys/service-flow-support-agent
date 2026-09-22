@@ -59,6 +59,9 @@ class SupportStore:
                   order_id TEXT PRIMARY KEY, refund_id TEXT NOT NULL UNIQUE,
                   amount REAL NOT NULL, created_at TEXT NOT NULL);
             """)
+            from .outbox import SCHEMA as OUTBOX_SCHEMA
+
+            self.connection.executescript(OUTBOX_SCHEMA)
             columns = {
                 r[1]
                 for r in self.connection.execute("PRAGMA table_info(pending_actions)")
@@ -332,6 +335,15 @@ class SupportStore:
                     self.connection.execute(
                         "INSERT INTO refund_ledger VALUES(?,?,?,?)",
                         (args["order_id"], refund_id, amount, utc_now()),
+                    )
+                    from .outbox import publish
+
+                    publish(
+                        self.connection,
+                        args["order_id"],
+                        "refund.completed",
+                        {"refund_id": refund_id, "amount": amount},
+                        event_id="refund:" + args["order_id"],
                     )
                     self.connection.execute(
                         "UPDATE orders SET status='refunded' WHERE order_id=?",

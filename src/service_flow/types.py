@@ -13,4 +13,3 @@ class SupportReply:
     ticket_id: str | None = None
     confirmation_token: str | None = None
     diagnostics: dict[str, Any] = field(default_factory=dict)
-

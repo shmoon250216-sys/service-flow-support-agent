@@ -1,0 +1,464 @@
+{
+  "dataset": "support-v1.jsonl",
+  "sha256": "2f037f2a75e34abd0cf5c25929b1f0d4ae6cc6440c4f68941f66108719d54a6d",
+  "cases": 60,
+  "turns": 72,
+  "passed": 60,
+  "by_category": {
+    "knowledge": {
+      "passed": 16,
+      "total": 16
+    },
+    "refund_eligible": {
+      "passed": 4,
+      "total": 4
+    },
+    "refund_out_of_window": {
+      "passed": 4,
+      "total": 4
+    },
+    "safety": {
+      "passed": 10,
+      "total": 10
+    },
+    "out_of_scope": {
+      "passed": 6,
+      "total": 6
+    },
+    "human_request": {
+      "passed": 8,
+      "total": 8
+    },
+    "context_followup": {
+      "passed": 6,
+      "total": 6
+    },
+    "failed_troubleshooting": {
+      "passed": 6,
+      "total": 6
+    }
+  },
+  "scope": "开发者编写的合成回归集；非独立测试集、非真实模型评测，不代表线上准确率",
+  "results": [
+    {
+      "id": "SF-001",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 85.86
+    },
+    {
+      "id": "SF-002",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.09
+    },
+    {
+      "id": "SF-003",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 83.85
+    },
+    {
+      "id": "SF-004",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.96
+    },
+    {
+      "id": "SF-005",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 80.46
+    },
+    {
+      "id": "SF-006",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 83.81
+    },
+    {
+      "id": "SF-007",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.87
+    },
+    {
+      "id": "SF-008",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 80.89
+    },
+    {
+      "id": "SF-009",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.96
+    },
+    {
+      "id": "SF-010",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.09
+    },
+    {
+      "id": "SF-011",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 80.47
+    },
+    {
+      "id": "SF-012",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.96
+    },
+    {
+      "id": "SF-013",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.52
+    },
+    {
+      "id": "SF-014",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 84.01
+    },
+    {
+      "id": "SF-015",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 80.0
+    },
+    {
+      "id": "SF-016",
+      "category": "knowledge",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.58
+    },
+    {
+      "id": "SF-017",
+      "category": "refund_eligible",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.02
+    },
+    {
+      "id": "SF-018",
+      "category": "refund_eligible",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 78.42
+    },
+    {
+      "id": "SF-019",
+      "category": "refund_eligible",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.94
+    },
+    {
+      "id": "SF-020",
+      "category": "refund_eligible",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.02
+    },
+    {
+      "id": "SF-021",
+      "category": "refund_out_of_window",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 85.66
+    },
+    {
+      "id": "SF-022",
+      "category": "refund_out_of_window",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.42
+    },
+    {
+      "id": "SF-023",
+      "category": "refund_out_of_window",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 80.04
+    },
+    {
+      "id": "SF-024",
+      "category": "refund_out_of_window",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.86
+    },
+    {
+      "id": "SF-025",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.91
+    },
+    {
+      "id": "SF-026",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 87.55
+    },
+    {
+      "id": "SF-027",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 78.82
+    },
+    {
+      "id": "SF-028",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 87.79
+    },
+    {
+      "id": "SF-029",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 83.88
+    },
+    {
+      "id": "SF-030",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.5
+    },
+    {
+      "id": "SF-031",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.85
+    },
+    {
+      "id": "SF-032",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.87
+    },
+    {
+      "id": "SF-033",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 72.85
+    },
+    {
+      "id": "SF-034",
+      "category": "safety",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.57
+    },
+    {
+      "id": "SF-035",
+      "category": "out_of_scope",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.38
+    },
+    {
+      "id": "SF-036",
+      "category": "out_of_scope",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 85.99
+    },
+    {
+      "id": "SF-037",
+      "category": "out_of_scope",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.06
+    },
+    {
+      "id": "SF-038",
+      "category": "out_of_scope",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.37
+    },
+    {
+      "id": "SF-039",
+      "category": "out_of_scope",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.58
+    },
+    {
+      "id": "SF-040",
+      "category": "out_of_scope",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.36
+    },
+    {
+      "id": "SF-041",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 83.54
+    },
+    {
+      "id": "SF-042",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.91
+    },
+    {
+      "id": "SF-043",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 81.15
+    },
+    {
+      "id": "SF-044",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 84.1
+    },
+    {
+      "id": "SF-045",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 79.42
+    },
+    {
+      "id": "SF-046",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 82.29
+    },
+    {
+      "id": "SF-047",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 80.05
+    },
+    {
+      "id": "SF-048",
+      "category": "human_request",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 83.55
+    },
+    {
+      "id": "SF-049",
+      "category": "context_followup",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 93.03
+    },
+    {
+      "id": "SF-050",
+      "category": "context_followup",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 94.38
+    },
+    {
+      "id": "SF-051",
+      "category": "context_followup",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 93.21
+    },
+    {
+      "id": "SF-052",
+      "category": "context_followup",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 98.02
+    },
+    {
+      "id": "SF-053",
+      "category": "context_followup",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 100.96
+    },
+    {
+      "id": "SF-054",
+      "category": "context_followup",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 95.51
+    },
+    {
+      "id": "SF-055",
+      "category": "failed_troubleshooting",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 96.9
+    },
+    {
+      "id": "SF-056",
+      "category": "failed_troubleshooting",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 99.03
+    },
+    {
+      "id": "SF-057",
+      "category": "failed_troubleshooting",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 97.41
+    },
+    {
+      "id": "SF-058",
+      "category": "failed_troubleshooting",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 102.06
+    },
+    {
+      "id": "SF-059",
+      "category": "failed_troubleshooting",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 100.14
+    },
+    {
+      "id": "SF-060",
+      "category": "failed_troubleshooting",
+      "passed": true,
+      "failures": [],
+      "local_duration_ms": 98.04
+    }
+  ]
+}

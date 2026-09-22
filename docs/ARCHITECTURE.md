@@ -1,4 +1,4 @@
-# ServiceFlow 0.2 架构与行为契约
+# ServiceFlow 0.3 架构与行为契约
 
 ## 请求流程
 
@@ -16,7 +16,7 @@ flowchart TD
  J --> K[客服条件抢单 回复 恢复/结案]
 ```
 
-`api.py` 负责身份和输入边界；`conversations.py` 负责会话与人工状态机；`agent.py` 负责售后规则；`tools.py` 负责工具契约；`store.py` 负责 SQLite 和退款原子账本。
+`api.py` 负责身份和输入边界；`conversations.py` 负责会话模式和上下文；`cases.py` 负责工单聚合、生命周期、SLA 和审计；`outbox.py` 负责事务事件与可靠投递；`agent.py` 负责售后规则；`tools.py` 负责工具契约；`store.py` 负责 SQLite 和退款原子账本。
 
 ## 上下文
 
@@ -62,3 +62,31 @@ Pydantic 禁止额外字段和错误类型；输出模型检查必要结果字�
 当前推荐一个 Uvicorn worker。服务内共享锁串行化会话变更；调用模型可能占用该锁至超时，不适合高并发。SQLite 约束单独保障订单账本并发，不能把这个局部保障扩大解释为所有会话状态已支持分布式部署。
 
 已完成请求可按 request_id 重放；执行中崩溃留下 response=NULL 时返回 409，要求核对状态，尚无后台租约恢复调度。进程正常执行的会话仍可继续，不会根据旧用户指令自动重放动作。
+
+## 工单聚合与一致性边界
+
+```mermaid
+stateDiagram-v2
+ [*] --> open: 创建/转人工
+ open --> in_progress: 接管
+ in_progress --> pending_customer: 等待补充
+ pending_customer --> in_progress: 客户回复/客服回复
+ in_progress --> in_progress: 转交
+ in_progress --> resolved: 结案/恢复自动服务
+ pending_customer --> resolved: 结案/恢复自动服务
+ resolved --> open: 主管重开
+```
+
+工单状态独立于会话模式：等待客户仍属于人工模式；恢复自动服务时工单结束而会话回到 bot。客服动作使用数据库写事务，比较请求版本和当前版本，更新后版本加一，同时保存审计和通知事件；过期版本返回 409。抢单只接受待接管状态，同一客服重复接管返回当前结果。重开/死信重试属于主管权限；转交目标必须是已配置客服，开发模式需先登录目标身份。
+
+`case_records` 保存状态、负责人、队列、优先级、版本和 SLA 时间；`case_audit` 保存操作者、前后状态、版本、说明。摘要是订单/主题/最近六条截断原文的结构化快照，不是模型生成的事实结论。旧会话启动时补建工单聚合，已恢复 bot 的旧工单按已解决迁移；旧记录无法还原真实响应耗时，SLA 从迁移时间开始计算。
+
+普通首次响应/解决时限是 1800/28800 秒，紧急为 300/3600 秒。首次人工回复停止响应时钟；接管不等于回复；等待客户不暂停解决计时。后台任务每 5 秒扫描，迟到回复也会当场记录违约，避免扫描间隙漏报。重开重新计时，转交不重置时限。安全升级缩短剩余截止时间。逾期事件 ID 由工单、时限类型和截止时间确定，重复扫描不会重复通知。
+
+## 事务发件箱与失败恢复
+
+状态修改与 `outbox_events` 插入共用事务，发布异常则一起回滚。投递器用 `BEGIN IMMEDIATE` 领取事件、增加尝试次数并设置 30 秒租约；发送步骤在事务外执行。确认时比较租约令牌，过期 worker 不能确认新 worker 的任务。失败按 2、4 秒退避，最多三次，之后保留死信供主管重试。进程在“消费成功、确认前”崩溃时会重新投递，`notification_inbox.event_id` 唯一约束避免本地消费重复。
+
+这是 at-least-once + 幂等消费。当前通知落本地收件箱，尚无外部消息服务；支付事务本身仍是本地模拟。任务扫描通过 asyncio.to_thread 避免阻塞事件循环，退出时等待当前任务完成再关闭数据库。不要把后台线程说成整个会话链路已经异步化。
+
+新增端点：`GET /api/staff/overview`、`GET /api/staff/queue?status=active&queue=all`、`GET /api/staff/conversations/{id}/audit`、`POST /api/staff/conversations/{id}/case-action`、`GET /api/staff/outbox`、`GET /api/staff/notifications`、`POST /api/staff/outbox/{event_id}/retry`。客服动作必须携带版本，resolve/resume 必须携带结案分类；旧 `/action` 接口移除，避免绕过版本契约。

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from dataclasses import dataclass
 from typing import Protocol
@@ -9,12 +10,34 @@ from typing import Protocol
 ROUTES = {"knowledge", "refund", "ticket", "safety", "unknown"}
 
 
+def _positive_keyword(message: str, keywords: tuple[str, ...]) -> bool:
+    # Conservative local negation scope; this is not general semantic understanding.
+    for word in keywords:
+        for match in re.finditer(re.escape(word), message):
+            prefix = message[max(0, match.start() - 6) : match.start()]
+            if not re.search(
+                r"(?:没有|并未|不是|无需|不用|不需要|不想|不要|未)(?:发生|出现)?$",
+                prefix,
+            ):
+                return True
+    return False
+
+
 def rule_classify(message: str) -> str:
-    if any(k in message for k in ("冒烟", "起火", "鼓包", "烫手", "发烫")):
+    if _positive_keyword(
+        message, ("冒烟", "起火", "鼓包", "烫手", "发烫", "烧焦", "过热")
+    ):
         return "safety"
-    if any(k in message for k in ("退款", "退货", "不要了", "退钱")):
+    policy_question = bool(
+        re.search(r"(?:退款|退货).{0,8}(?:规则|政策|条件|要求)", message)
+    )
+    if policy_question and not re.search(
+        r"(?:我要|申请|帮我)(?:办理)?(?:退款|退货)", message
+    ):
+        return "knowledge"
+    if _positive_keyword(message, ("退款", "退货", "不要了", "退钱")):
         return "refund"
-    if any(k in message for k in ("人工", "投诉", "工单", "寄修", "坏了")):
+    if _positive_keyword(message, ("人工", "投诉", "工单", "寄修", "坏了")):
         return "ticket"
     if any(
         k in message
@@ -29,6 +52,7 @@ def rule_classify(message: str) -> str:
             "噪声",
             "质保",
             "保修",
+            "配对",
         )
     ):
         return "knowledge"

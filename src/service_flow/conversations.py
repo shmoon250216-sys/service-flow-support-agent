@@ -12,10 +12,7 @@ from .routing import rule_classify
 from .store import utc_now
 
 
-class WorkflowError(ValueError):
-    def __init__(self, message, status=409):
-        self.status = status
-        super().__init__(message)
+from .cases import CaseService, CaseError as WorkflowError
 
 
 class ConversationService:
@@ -39,6 +36,8 @@ class ConversationService:
                   request_id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL,
                   fingerprint TEXT NOT NULL, response TEXT, created_at TEXT NOT NULL);
             """)
+
+        self.cases = CaseService(store)
 
     def create(self, customer, order_id):
         self.agent.tools.call(
@@ -74,6 +73,7 @@ class ConversationService:
             for m in reversed(messages)
         ]
         row["order"] = dict(self.store.order(row["order_id"]))
+        row["case"] = self.cases.get(cid)
         import time
 
         for message in row["messages"]:
@@ -172,6 +172,7 @@ class ConversationService:
                 )
             context = self.context(cid)
             self.append(cid, "user", message, {"request_id": request_id})
+            self.cases.customer_message(cid)
             self.agent.tools.audit = lambda name, status, ms: self.store.append_event(
                 request_id,
                 "tool_call",
@@ -187,15 +188,7 @@ class ConversationService:
                         }
                     else:
                         if rule_classify(message) == "safety":
-                            with self.store.connection:
-                                self.store.connection.execute(
-                                    "UPDATE conversations SET priority='urgent' WHERE id=?",
-                                    (cid,),
-                                )
-                                self.store.connection.execute(
-                                    "UPDATE tickets SET priority='urgent' WHERE ticket_id=?",
-                                    (row["ticket_id"],),
-                                )
+                            self.cases.escalate_safety(cid)
                             self.append(
                                 cid,
                                 "system",
@@ -260,14 +253,12 @@ class ConversationService:
                             if reply["route"] == "safety"
                             else "排障未解决"
                             if failed
+                            else "退款需人工核验"
+                            if reply["route"] == "refund"
                             else "用户请求人工或知识证据不足"
                         )
                         priority = "urgent" if reply["route"] == "safety" else "normal"
-                        with self.store.connection:
-                            self.store.connection.execute(
-                                "UPDATE conversations SET state='waiting_human',ticket_id=?,reason=?,priority=? WHERE id=?",
-                                (reply["ticket_id"], reason, priority, cid),
-                            )
+                        self.cases.open(cid, reply["ticket_id"], reason, priority)
                         reply["message"] += (
                             " 客服工作台已收到本会话、订单和历史记录，等待接管。"
                         )
@@ -284,47 +275,35 @@ class ConversationService:
             finally:
                 self.agent.tools.audit = None
 
-    def claim(self, cid, staff):
-        with self.store.lock, self.store.connection:
-            row = self.row(cid)
-            if row["state"] == "human" and row["assignee"] == staff:
-                return self.get(cid)
-            changed = self.store.connection.execute(
-                "UPDATE conversations SET state='human',assignee=?,updated_at=? WHERE id=? AND state='waiting_human'",
-                (staff, utc_now(), cid),
-            ).rowcount
-            if not changed:
-                raise WorkflowError("会话已被接管或不在等待队列")
-        self.append(cid, "system", f"客服 {staff} 已接管会话。")
-        self.store.append_event(cid, "human_claimed", {"staff": staff})
+    def claim(self, cid, staff, expected_version=None):
+        self.cases.action(cid, staff, "claim", expected_version=expected_version)
         return self.get(cid)
 
-    def staff_action(self, cid, staff, action, text):
-        with self.store.lock:
-            row = self.row(cid)
-            if row["state"] != "human" or row["assignee"] != staff:
-                raise WorkflowError("请先接管会话；仅当前客服可操作", 403)
-            if action == "reply":
-                self.append(cid, "staff", text, {"staff": staff})
-            elif action in {"resolve", "resume"}:
-                if action == "resume" and row["priority"] == "urgent":
-                    raise WorkflowError("安全工单不能转回自动排障，请人工处理后结案")
-                state = "resolved" if action == "resolve" else "bot"
-                with self.store.connection:
-                    self.store.connection.execute(
-                        "UPDATE conversations SET state=?,assignee=NULL WHERE id=?",
-                        (state, cid),
-                    )
-                self.append(
-                    cid,
-                    "system",
-                    ("客服已结案：" if action == "resolve" else "客服已恢复自动服务：")
-                    + text,
-                )
-            self.store.append_event(
-                cid, "staff_" + action, {"staff": staff, "note": text}
-            )
-            return self.get(cid)
+    def staff_action(
+        self,
+        cid,
+        staff,
+        action,
+        text,
+        *,
+        expected_version=None,
+        target=None,
+        resolution_code=None,
+        supervisor=False,
+    ):
+        if action in {"resolve", "resume"} and resolution_code is None:
+            resolution_code = "return_to_bot" if action == "resume" else "solved"
+        self.cases.action(
+            cid,
+            staff,
+            action,
+            text,
+            expected_version=expected_version,
+            target=target,
+            resolution_code=resolution_code,
+            supervisor=supervisor,
+        )
+        return self.get(cid)
 
     def confirm(self, cid, customer, token):
         with self.store.lock:
